@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stick-Bee Kalkulator</title>
     
-    <!-- PWA Manifest einbinden (setzt voraus, dass manifest.json existiert) -->
-    <link rel="manifest" href="manifest.json">
-
     <!-- Mobile Web App Settings (iOS Fallback) -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -31,25 +28,6 @@
 </head>
 <body class="bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white">
     <div id="root"></div>
-
-    <!-- Service Worker Registrierung für PWA (set voraus, dass sw.js existiert) -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                // Prüfen, ob der Service Worker bereits registriert ist
-                navigator.serviceWorker.getRegistration('./sw.js').then(reg => {
-                    if (reg) {
-                        console.log('Service Worker ist bereits registriert und aktiv.');
-                    } else {
-                        // Wenn nicht, neu registrieren
-                        navigator.serviceWorker.register('./sw.js')
-                            .then(reg => console.log('Service Worker erfolgreich registriert', reg))
-                            .catch(err => console.error('Service Worker Registrierung fehlgeschlagen', err));
-                    }
-                }).catch(err => console.error('Fehler beim Abrufen der Service Worker Registrierung', err));
-            });
-        }
-    </script>
 
     <!-- Application Logic (React mit Babel) -->
     <script type="text/babel" data-type="module">
@@ -328,7 +306,7 @@
                             <div className="flex justify-between text-slate-300 pb-3 border-b border-slate-700/50"><span>Grundpreis (Staffel: {result.details.staffelLabel})</span><span>{formatEUR(result.details.grundpreis)}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-400">Stückpreis (netto)</span><span className="text-white font-medium">{formatEUR(result.details.einzelNetto)}</span></div>
                             <div className="flex justify-between items-center"><span className="text-slate-400">Stückzahl</span><span className="text-white">× {state.stueckzahl}</span></div>
-                            {result.details.fixkosten > 0 && (<div className="flex justify-between items-center pt-2 text-amber-200"><span>+ Fixkosten (Grafik/Datei)</span><span>{formatEUR(result.details.fixkosten)}</span></div>)}
+                            {result.details.fixkosten > 0 && (<div className="flex justify-between items-center pt-2 text-amber-200"><span>+ Fixkosten (Grafik/Datei)</span><span>{formatEUR(CONFIG.extraKosten.grafik + CONFIG.extraKosten.datei)}</span></div>)}
                           </div>
                           
                           {/* Netto/MwSt Zusammenfassung */}
