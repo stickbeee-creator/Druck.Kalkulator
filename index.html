@@ -26,6 +26,15 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    /* Entfernt Pfeile bei number-Inputs */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white">
@@ -33,7 +42,7 @@
 
   <!-- Application Logic (React mit Babel) -->
   <script type="text/babel" data-type="module">
-    import React, { useState, useMemo, useEffect } from 'https://esm.sh/react@18.2.0';
+    import React, { useState, useMemo, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
     import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
     import { Calculator, AlertCircle, Check, Minus, Plus, FileText, RefreshCcw, Settings2 } from 'https://esm.sh/lucide-react@0.292.0';
 
@@ -148,6 +157,25 @@
 
     // --- UI Komponenten ---
     const NumberControl = ({ label, value, onChange, min = 1, max = 35, step = 0.5, suffix = "" }) => {
+      const intervalRef = useRef(null);
+      const timeoutRef = useRef(null);
+      const valueRef = useRef(value);
+
+      useEffect(() => { valueRef.current = value; }, [value]);
+
+      const stopHold = () => {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+
+      useEffect(() => stopHold, []);
+
       const handleChange = (newVal) => {
         let v = parseFloat(newVal);
         if (isNaN(v)) return;
@@ -155,17 +183,75 @@
         if (v < min) v = min;
         onChange(v);
       };
-      const displayValue = typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(1)) : value;
+
+      const startHold = (direction) => {
+        // Sofort 1x ausführen
+        handleChange(value + direction * step);
+        // Dann nach kurzer Verzögerung schnell weiterlaufen lassen
+        timeoutRef.current = setTimeout(() => {
+          intervalRef.current = setInterval(() => {
+            handleChange(valueRef.current + direction * step);
+          }, 45);
+        }, 250);
+      };
+
+      const displayValue = typeof value === 'number'
+        ? (Number.isInteger(value) ? value : value.toFixed(1))
+        : value;
+
+      const onMinusDown = (e) => { e.preventDefault(); stopHold(); startHold(-1); };
+      const onPlusDown = (e) => { e.preventDefault(); stopHold(); startHold(1); };
+
+      const holdProps = (onDown) => ({
+        onPointerDown: onDown,
+        onPointerUp: stopHold,
+        onPointerLeave: stopHold,
+        onPointerCancel: stopHold,
+        onContextMenu: (e) => e.preventDefault(),
+      });
+
       return (
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</label>
           <div className="flex items-center bg-slate-900 rounded-lg border border-slate-700 p-1">
-            <button onClick={() => handleChange(value - step)} className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition active:scale-95 touch-manipulation" type="button" aria-label={`Reduziere ${label}`}><Minus size={16} /></button>
-            <div className="flex-1 h-10 text-center text-lg text-white flex items-center justify-center overflow-hidden">
-              <span>{displayValue}</span>
-              <span className="text-slate-500 text-sm ml-1">{suffix}</span>
-            </div>
-            <button onClick={() => handleChange(value + step)} className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white transition active:scale-95 touch-manipulation" type="button" aria-label={`Erhöhe ${label}`}><Plus size={16} /></button>
+            <button
+              type="button"
+              aria-label={`Reduziere ${label}`}
+              {...holdProps(onMinusDown)}
+              className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition active:scale-95 touch-manipulation"
+            >
+              <Minus size={16} />
+            </button>
+
+            <div class="flex-1 h-10 flex items-center justify-center overflow-hidden">
+  <div class="flex items-center">
+    <input
+      class="w-full bg-transparent text-center text-lg text-white outline-none"
+      type="number"
+      inputMode={step < 1 ? "decimal" : "numeric"}
+      value={displayValue}
+      step={step}
+      min={min}
+      max={max}
+      onChange={(e) => handleChange(e.target.value)}
+      onBlur={(e) => handleChange(e.target.value)}
+      onFocus={(e) => e.target.select()}
+      aria-label={label}
+    />
+    {suffix && (
+      <span class="text-slate-500 text-sm ml-0.5">{suffix}</span>
+    )}
+  </div>
+</div>
+
+            <button
+              type="button"
+              aria-label={`Erhöhe ${label}`}
+              {...holdProps(onPlusDown)}
+              className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white transition active:scale-95 touch-manipulation"
+            >
+              <Plus size={16} />
+            </button>
           </div>
         </div>
       );
@@ -226,10 +312,10 @@
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
                   <div className="flex items-center gap-2 mb-4 text-white font-semibold"><Settings2 size={18} className="text-blue-400" /><span>Basisdaten</span></div>
                   <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 sm:gap-5">
-                    <NumberControl label="Länge" value={state.laenge} suffix="cm" step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
-                    <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} suffix="Stück" step={1} onChange={(v) => setState(s => ({...s, stueckzahl: v}))} />
-                    <NumberControl label="Breite" value={state.breite} suffix="cm" step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
-                    <NumberControl label="Farben" value={state.farben} min={1} max={3} step={1} suffix="max" onChange={(v) => setState(s => ({...s, farben: v}))} />
+                    <NumberControl label="Länge (cm)" value={state.laenge} step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
+                    <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} max={1000}  step={1} onChange={(v) => setState(s => ({ ...s, stueckzahl: v }))} />
+                    <NumberControl label="Breite (cm)" value={state.breite} step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
+                    <NumberControl label="Farben" value={state.farben} min={1} max={3} step={1}  onChange={(v) => setState(s => ({...s, farben: v}))} />
                   </div>
                   <div className="mt-6">
                     <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">Drucktechnik</label>
