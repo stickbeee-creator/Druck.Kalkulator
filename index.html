@@ -1,228 +1,55 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stick-Bee Kalkulator</title>
-    
-    <!-- PWA Manifest einbinden -->
-    <link rel="manifest" href="manifest.json">
+// Service Worker für Offline-Caching
+const CACHE_NAME = 'stickbee-calculator-v1';
+const urlsToCache = [
+    '/',
+    '/index.html',
+    'https://cdn.tailwindcss.com',
+    'https://unpkg.com/@babel/standalone/babel.min.js',
+    'https://esm.sh/react@18.2.0',
+    'https://esm.sh/react-dom@18.2.0/client',
+    'https://esm.sh/lucide-react@0.292.0',
+    'https://cdn-icons-png.flaticon.com/512/3393/3393989.png', // App Icon
+    '/manifest.json'
+];
 
-    <!-- Mobile Web App Settings (iOS Fallback) -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#0f172a">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3393/3393989.png">
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3393/3393989.png">
+// Installation: Cache alle notwendigen Assets
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then((cache) => {
+                console.log('Opened cache');
+                return cache.addAll(urlsToCache);
+            })
+    );
+});
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+// Aktivierung: Alte Caches aufräumen
+self.addEventListener('activate', (event) => {
+    const cacheWhitelist = [CACHE_NAME];
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        })
+    );
+});
 
-    <!-- React & ReactDOM via CDN -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <style>
-        body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white">
-    <div id="root"></div>
-
-    <!-- Service Worker Registrierung für PWA -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker registriert', reg))
-                    .catch(err => console.log('Service Worker Fehler', err));
-            });
-        }
-    </script>
-
-    <!-- Application Logic -->
-    <script type="text/babel" data-type="module">
-        import React, { useState, useMemo } from 'https://esm.sh/react@18.2.0';
-        import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
-        import { 
-            Calculator, AlertCircle, Check, Minus, Plus, 
-            FileText, RefreshCcw, Settings2 
-        } from 'https://esm.sh/lucide-react@0.292.0';
-
-        const CONFIG = {
-          mwst: 0.19,
-          preise: [
-            { max: 10, preis: 5.5, label: "XS (bis 10cm)" },
-            { max: 15, preis: 6.5, label: "S (bis 15cm)" },
-            { max: 20, preis: 7.5, label: "M (bis 20cm)" },
-            { max: 25, preis: 8.5, label: "L (bis 25cm)" },
-            { max: 30, preis: 9.5, label: "XL (bis 30cm)" },
-            { max: 35, preis: 10.5, label: "XXL (bis 35cm)" },
-          ],
-          rabatte: [
-            { min: 1000, faktor: 0.3, label: "-70%" },
-            { min: 500, faktor: 0.35, label: "-65%" },
-            { min: 250, faktor: 0.45, label: "-55%" },
-            { min: 100, faktor: 0.6, label: "-40%" },
-            { min: 50, faktor: 0.7, label: "-30%" },
-            { min: 20, faktor: 0.8, label: "-20%" },
-            { min: 10, faktor: 0.9, label: "-10%" },
-            { min: 1, faktor: 1.0, label: "0%" },
-          ],
-          techniken: {
-            dtf: { label: "DTF / Transfer", faktor: 1.0, desc: "Standard" },
-            flex: { label: "Flex / Flock", faktor: 1.2, desc: "+20% (Handarbeit)" },
-          },
-          extraKosten: { grafik: 20.0, datei: 25.0, fremdware: 1.5 },
-          faktoren: { reflektor: 1.2, wiederverkaeufer: 0.8, farbStep: 0.25 },
-        };
-
-        const formatEUR = (val) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(val);
-
-        function calculatePrice(state) {
-          const { laenge, breite, stueckzahl, farben, technik, extras } = state;
-          const maxKante = Math.max(laenge, breite);
-          const staffel = CONFIG.preise.find((s) => maxKante <= s.max);
-
-          if (!staffel) return { error: "Größe überschreitet Standardmaße (max 35cm)." };
-
-          const grundpreis = staffel.preis;
-          const farbAnzahl = Math.min(Math.max(1, farben), 3);
-          const farbFaktor = 1 + CONFIG.faktoren.farbStep * (farbAnzahl - 1);
-          const gewaehlteTechnik = CONFIG.techniken[technik] ? technik : "dtf";
-          const technikFaktor = CONFIG.techniken[gewaehlteTechnik].faktor;
-          const reflektorFaktor = extras.reflektor ? CONFIG.faktoren.reflektor : 1.0;
-          const rabattStaffel = CONFIG.rabatte.find((r) => stueckzahl >= r.min) || { faktor: 1, label: "0%" };
-          const mengenFaktor = rabattStaffel.faktor;
-
-          let einzelVeredelung = grundpreis * farbFaktor * technikFaktor * reflektorFaktor * mengenFaktor;
-          if (extras.wiederverkaeufer) einzelVeredelung *= CONFIG.faktoren.wiederverkaeufer;
-
-          const fremdwareZuschlag = extras.fremdware ? CONFIG.extraKosten.fremdware : 0;
-          const einzelNetto = einzelVeredelung + fremdwareZuschlag;
-          const gesamtNettoStueck = einzelNetto * stueckzahl;
-          const fixkosten = (extras.grafik ? CONFIG.extraKosten.grafik : 0) + (extras.datei ? CONFIG.extraKosten.datei : 0);
-          const totalNetto = gesamtNettoStueck + fixkosten;
-          const totalBrutto = totalNetto * (1 + CONFIG.mwst);
-
-          return {
-            details: {
-              staffelLabel: staffel.label,
-              grundpreis,
-              rabattLabel: rabattStaffel.label,
-              einzelNetto,
-              einzelBrutto: einzelNetto * (1 + CONFIG.mwst),
-              fixkosten,
-            },
-            totalNetto,
-            totalBrutto,
-            error: null
-          };
-        }
-
-        // --- UPDATE: Buttons fixiert (shrink-0) und Mitte fixiert (h-10) für perfekte Zentrierung ---
-        const NumberControl = ({ label, value, onChange, min = 0, max, step = 1, suffix = "" }) => {
-          const handleChange = (newVal) => {
-            let v = parseFloat(newVal);
-            if (isNaN(v)) return;
-            if (max !== undefined && v > max) v = max;
-            if (v < min) v = min;
-            onChange(v);
-          };
-          return (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</label>
-              <div className="flex items-center bg-slate-900 rounded-lg border border-slate-700 p-1">
-                <button onClick={() => handleChange(value - step)} className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition active:scale-95 touch-manipulation" type="button"><Minus size={16} /></button>
-                <div className="flex-1 h-10 text-center font-mono text-lg text-white flex items-center justify-center overflow-hidden"><span>{typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(1) : value}</span><span className="text-slate-500 text-sm ml-1">{suffix}</span></div>
-                <button onClick={() => handleChange(value + step)} className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white transition active:scale-95 touch-manipulation" type="button"><Plus size={16} /></button>
-              </div>
-            </div>
-          );
-        };
-
-        const Toggle = ({ label, checked, onChange, priceInfo }) => (
-          <div onClick={() => onChange(!checked)} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all duration-200 touch-manipulation ${checked ? "bg-blue-900/20 border-blue-500/50" : "bg-slate-800/50 border-slate-700 hover:border-slate-600"}`}>
-            <div className="flex flex-col"><span className={`text-sm font-medium ${checked ? "text-blue-200" : "text-slate-300"}`}>{label}</span>{priceInfo && <span className="text-xs text-slate-500">{priceInfo}</span>}</div>
-            <div className={`w-10 h-6 rounded-full relative transition-colors ${checked ? "bg-blue-500" : "bg-slate-600"}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${checked ? "left-5" : "left-1"}`} /></div>
-          </div>
-        );
-
-        function App() {
-          const [state, setState] = useState({
-            laenge: 10, breite: 10, stueckzahl: 10, farben: 1, technik: "dtf",
-            extras: { grafik: false, datei: false, fremdware: false, wiederverkaeufer: false, reflektor: false }
-          });
-          const updateExtra = (key) => setState(s => ({ ...s, extras: { ...s.extras, [key]: !s.extras[key] } }));
-          const result = useMemo(() => calculatePrice(state), [state]);
-          const hasError = !!result.error;
-
-          return (
-            <div className="min-h-screen p-4 md:p-8 flex justify-center items-start font-sans pb-12">
-              <div className="w-full max-w-4xl">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20"><Calculator className="text-white" size={24} /></div>
-                  <div><h1 className="text-2xl font-bold text-white">Kalkulator</h1><p className="text-slate-400 text-sm">Textilveredelung</p></div>
-                </div>
-                <div className="flex flex-col gap-6">
-                  <div className="space-y-6">
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4 text-white font-semibold"><Settings2 size={18} className="text-blue-400" /><span>Basisdaten</span></div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <NumberControl label="Länge" value={state.laenge} suffix="cm" step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} />
-                        <NumberControl label="Breite" value={state.breite} suffix="cm" step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} />
-                        <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} onChange={(v) => setState(s => ({...s, stueckzahl: v}))} />
-                        <NumberControl label="Farben" value={state.farben} min={1} max={3} suffix="max" onChange={(v) => setState(s => ({...s, farben: v}))} />
-                      </div>
-                      <div className="mt-6">
-                        <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">Drucktechnik</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {Object.entries(CONFIG.techniken).map(([key, tech]) => (
-                            <button key={key} onClick={() => setState(s => ({...s, technik: key}))} className={`p-3 rounded-lg border text-left transition-all touch-manipulation ${state.technik === key ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20" : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-800/80"}`}><div className="font-bold text-sm">{tech.label}</div><div className={`text-xs mt-1 ${state.technik === key ? "text-blue-200" : "text-slate-500"}`}>{tech.desc}</div></button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4 text-white font-semibold"><FileText size={18} className="text-blue-400" /><span>Optionen & Service</span></div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Toggle label="Grafikbearbeitung" checked={state.extras.grafik} onChange={() => updateExtra('grafik')} priceInfo={`+${formatEUR(CONFIG.extraKosten.grafik)} pauschal`} />
-                        <Toggle label="Dateiaufbereitung" checked={state.extras.datei} onChange={() => updateExtra('datei')} priceInfo={`+${formatEUR(CONFIG.extraKosten.datei)} pauschal`} />
-                        <Toggle label="Reflektor-Material" checked={state.extras.reflektor} onChange={() => updateExtra('reflektor')} priceInfo="+20% Aufschlag" />
-                        <Toggle label="Fremdware" checked={state.extras.fremdware} onChange={() => updateExtra('fremdware')} priceInfo={`+${formatEUR(CONFIG.extraKosten.fremdware)} / Stück`} />
-                        <Toggle label="Wiederverkäufer" checked={state.extras.wiederverkaeufer} onChange={() => updateExtra('wiederverkaeufer')} priceInfo="-20% auf Veredelung" />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    {hasError ? (
-                      <div className="bg-red-500/10 border border-red-500/50 rounded-2xl p-6 text-red-200 flex flex-col items-center text-center animate-pulse"><AlertCircle size={48} className="mb-3 text-red-500" /><h3 className="text-lg font-bold text-white">Kalkulation nicht möglich</h3><p className="text-sm mt-1">{result.error}</p><button onClick={() => setState(s => ({...s, laenge: 10, breite: 10}))} className="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded text-sm font-medium transition">Maße zurücksetzen</button></div>
-                    ) : (
-                      <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-2xl sticky top-4">
-                        <div className="bg-slate-900/50 p-6 border-b border-slate-700"><div className="flex justify-between items-start"><div><h2 className="text-slate-400 text-xs uppercase tracking-widest font-bold mb-1">Gesamtsumme</h2><div className="text-4xl font-bold text-white tracking-tight">{formatEUR(result.totalBrutto)}</div><div className="text-slate-500 text-sm mt-1">inkl. 19% MwSt.</div></div></div></div>
-                        <div className="p-6 space-y-4">
-                          {result.details.rabattLabel !== "0%" && (<div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 p-3 rounded-lg border border-emerald-400/20 text-sm"><Check size={16} /><span className="font-medium">Mengenrabatt angewendet: {result.details.rabattLabel}</span></div>)}
-                          <div className="space-y-3 text-sm">
-                            <div className="flex justify-between text-slate-300 pb-3 border-b border-slate-700/50"><span>Grundpreis ({result.details.staffelLabel})</span><span>{formatEUR(result.details.grundpreis)}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-slate-400">Stückpreis (netto)</span><span className="text-white font-medium">{formatEUR(result.details.einzelNetto)}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-slate-400">Stückzahl</span><span className="text-white">× {state.stueckzahl}</span></div>
-                            {result.details.fixkosten > 0 && (<div className="flex justify-between items-center pt-2 text-amber-200"><span>+ Fixkosten (Grafik/Datei)</span><span>{formatEUR(result.details.fixkosten)}</span></div>)}
-                          </div>
-                          <div className="bg-slate-950 rounded-lg p-4 space-y-2 mt-4"><div className="flex justify-between text-slate-400 text-sm"><span>Netto gesamt</span><span>{formatEUR(result.totalNetto)}</span></div><div className="flex justify-between text-slate-500 text-xs"><span>MwSt (19%)</span><span>{formatEUR(result.totalBrutto - result.totalNetto)}</span></div></div>
-                        </div>
-                        <div className="p-4 bg-slate-900/30 border-t border-slate-700"><button onClick={() => setState({laenge: 10, breite: 10, stueckzahl: 10, farben: 1, technik: "dtf", extras: { grafik: false, datei: false, fremdware: false, wiederverkaeufer: false, reflektor: false }})} className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition text-sm font-medium border border-slate-700 hover:border-slate-600 touch-manipulation"><RefreshCcw size={16} /> Reset</button></div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        }
-        const root = createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+// Fetch: Assets aus dem Cache abrufen, wenn verfügbar (Cache-first Strategie)
+self.addEventListener('fetch', (event) => {
+    event.respondWith(
+        caches.match(event.request)
+            .then((response) => {
+                // Cache Treffer - zurückgeben
+                if (response) {
+                    return response;
+                }
+                // Kein Cache Treffer - Netzwerk nutzen
+                return fetch(event.request);
+            })
+    );
+});
