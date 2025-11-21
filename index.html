@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <!-- Wichtig: Die Viewport-Einstellungen beibehalten, um Responsiveness zu gewährleisten -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stick-Bee Kalkulator</title>
     
@@ -20,7 +21,12 @@
     
     <style>
         /* Verhindert das "Zurückziehen" des Browsers beim Scrollen auf mobilen Geräten */
-        body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; } 
+        /* Hinzugefügt: overflow-x-hidden, um horizontalen Versatz/Scrollen zu verhindern */
+        body { 
+            overscroll-behavior-y: none; 
+            -webkit-tap-highlight-color: transparent; 
+            overflow-x: hidden; 
+        } 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -230,8 +236,9 @@
 
 
           return (
+            // Die Klasse 'max-w-4xl' wurde auf 'max-w-xl' reduziert für bessere mobile Kompatibilität
             <div className="min-h-screen p-4 md:p-8 flex justify-center items-start font-sans pb-12">
-              <div className="w-full max-w-4xl">
+              <div className="w-full max-w-xl"> 
                 <div className="flex items-center gap-3 mb-6">
                   <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20"><Calculator className="text-white" size={24} /></div>
                   <div><h1 className="text-2xl font-bold text-white">Stick-Bee Kalkulator</h1><p className="text-slate-400 text-sm">Preise für Textilveredelung berechnen</p></div>
