@@ -18,7 +18,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- React & Babel -->
+    <!-- Babel for in-browser React -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
@@ -26,15 +26,10 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-    /* Entfernt Pfeile bei number-Inputs */
+        /* Entfernt Pfeile bei number-Inputs */
         input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white">
@@ -45,6 +40,20 @@
     import React, { useState, useMemo, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
     import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
     import { Calculator, AlertCircle, Check, Minus, Plus, FileText, RefreshCcw, Settings2 } from 'https://esm.sh/lucide-react@0.292.0';
+
+    // --- PREISLOGIK (Erklärung) ---
+    // 1) maxKante = max(Länge, Breite)
+    // 2) grundpreis = Staffelpreis laut CONFIG.preise
+    // 3) farbFaktor = 1 + 0.25 * (Farben-1)
+    // 4) technikFaktor = Faktor je Technik (DTF, Transfer, Flex)
+    // 5) reflektorFaktor = 1.2 falls aktiviert
+    // 6) mengenFaktor = Rabatt nach Stückzahl (max -50% ab 250)
+    // 7) einzelVeredelung = grundpreis * farbFaktor * technikFaktor * reflektorFaktor * mengenFaktor
+    // 8) Wiederverkäufer: einzelVeredelung *= 0.8
+    // 9) Fremdware: +1.50€ pro Stück
+    // 10) einzelNetto = einzelVeredelung + Fremdware
+    // 11) totalNetto = (einzelNetto * Stückzahl) + Fixkosten
+    // 12) totalBrutto = totalNetto * 1.19
 
     // --- Konfiguration ---
     const CONFIG = {
@@ -57,10 +66,9 @@
         { max: 30, preis: 9.5, label: "XL (bis 30cm)" },
         { max: 35, preis: 10.5, label: "XXL (bis 35cm)" },
       ],
+      // Rabatt maximal 50% ab 250 Stück
       rabatte: [
-        { min: 1000, faktor: 0.3, label: "-70%" },
-        { min: 500, faktor: 0.35, label: "-65%" },
-        { min: 250, faktor: 0.45, label: "-55%" },
+        { min: 250, faktor: 0.5, label: "-50%" },
         { min: 100, faktor: 0.6, label: "-40%" },
         { min: 50, faktor: 0.7, label: "-30%" },
         { min: 20, faktor: 0.8, label: "-20%" },
@@ -68,8 +76,9 @@
         { min: 1, faktor: 1.0, label: "0%" },
       ],
       techniken: {
-        dtf: { label: "DTF / Transfer", faktor: 1.0, desc: "Standard" },
-        flex: { label: "Flex / Flock", faktor: 1.2, desc: "+20% (Handarbeit)" },
+        dtf:      { label: "DTF",      faktor: 1.2, desc: "DTF & Digitaldruck" },
+        transfer: { label: "Transfer", faktor: 1.0, desc: "Premium" },
+        flex:     { label: "Flex / Flock", faktor: 1.2, desc: "+20% (Handarbeit)" },
       },
       extraKosten: { grafik: 20.0, datei: 25.0, fremdware: 1.5 },
       faktoren: { reflektor: 1.2, wiederverkaeufer: 0.8, farbStep: 0.25 },
@@ -85,9 +94,14 @@
 
       const grundpreis = staffel.preis;
       const farbAnzahl = Math.min(Math.max(1, farben), 3);
-      const farbFaktor = 1 + CONFIG.faktoren.farbStep * (farbAnzahl - 1);
+      let farbFaktor = 1 + CONFIG.faktoren.farbStep * (farbAnzahl - 1);
+
       const gewaehlteTechnik = CONFIG.techniken[technik] ? technik : "dtf";
       const technikFaktor = CONFIG.techniken[gewaehlteTechnik].faktor;
+
+      // DTF: keine Farbaufschläge
+      if (gewaehlteTechnik === "dtf") farbFaktor = 1.0;
+
       const reflektorFaktor = extras.reflektor ? CONFIG.faktoren.reflektor : 1.0;
       const rabattStaffel = CONFIG.rabatte.find((r) => stueckzahl >= r.min) || { faktor: 1, label: "0%" };
       const mengenFaktor = rabattStaffel.faktor;
@@ -185,9 +199,7 @@
       };
 
       const startHold = (direction) => {
-        // Sofort 1x ausführen
-        handleChange(value + direction * step);
-        // Dann nach kurzer Verzögerung schnell weiterlaufen lassen
+        handleChange(valueRef.current + direction * step);
         timeoutRef.current = setTimeout(() => {
           intervalRef.current = setInterval(() => {
             handleChange(valueRef.current + direction * step);
@@ -223,26 +235,26 @@
               <Minus size={16} />
             </button>
 
-            <div class="flex-1 h-10 flex items-center justify-center overflow-hidden">
-  <div class="flex items-center">
-    <input
-      class="w-full bg-transparent text-center text-lg text-white outline-none"
-      type="number"
-      inputMode={step < 1 ? "decimal" : "numeric"}
-      value={displayValue}
-      step={step}
-      min={min}
-      max={max}
-      onChange={(e) => handleChange(e.target.value)}
-      onBlur={(e) => handleChange(e.target.value)}
-      onFocus={(e) => e.target.select()}
-      aria-label={label}
-    />
-    {suffix && (
-      <span class="text-slate-500 text-sm ml-0.5">{suffix}</span>
-    )}
-  </div>
-</div>
+            <div className="flex-1 h-10 flex items-center justify-center overflow-hidden">
+              <div className="flex items-center">
+                <input
+                  className="w-full bg-transparent text-center text-lg text-white outline-none"
+                  type="number"
+                  inputMode={step < 1 ? "decimal" : "numeric"}
+                  value={displayValue}
+                  step={step}
+                  min={min}
+                  max={max}
+                  onChange={(e) => handleChange(e.target.value)}
+                  onBlur={(e) => handleChange(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  aria-label={label}
+                />
+                {suffix && (
+                  <span className="text-slate-500 text-sm ml-0.5 whitespace-nowrap">{suffix}</span>
+                )}
+              </div>
+            </div>
 
             <button
               type="button"
@@ -303,25 +315,40 @@
         <div className="min-h-screen p-4 md:p-8 flex flex-col items-center font-sans pb-8">
           <div className="w-full max-w-xl">
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20"><Calculator className="text-white" size={24} /></div>
-              <div><h1 className="text-2xl font-bold text-white">Stick-Bee Kalkulator</h1><p className="text-slate-400 text-sm">Preise für Textilveredelung berechnen</p></div>
+              <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20">
+                <Calculator className="text-white" size={24} />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Stick-Bee Kalkulator</h1>
+                <p className="text-slate-400 text-sm">Preise für Textilveredelung berechnen</p>
+              </div>
             </div>
 
             <div className="flex flex-col gap-6">
               <div className="space-y-6">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 text-white font-semibold"><Settings2 size={18} className="text-blue-400" /><span>Basisdaten</span></div>
+                  <div className="flex items-center gap-2 mb-4 text-white font-semibold">
+                    <Settings2 size={18} className="text-blue-400" />
+                    <span>Basisdaten</span>
+                  </div>
+
+                  {/* Reihenfolge mobil: Länge, Breite, Farben, Stückzahl */}
                   <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 sm:gap-5">
-  <NumberControl label="Länge (cm)" value={state.laenge} step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
-  <NumberControl label="Breite (cm)" value={state.breite} step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
-  <NumberControl label="Farben" value={state.farben} min={1} max={3} step={1} onChange={(v) => setState(s => ({...s, farben: v}))} />
-  <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} max={1000} step={1} onChange={(v) => setState(s => ({ ...s, stueckzahl: v }))} />
-</div>
+                    <NumberControl label="Länge (cm)" value={state.laenge} step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
+                    <NumberControl label="Breite (cm)" value={state.breite} step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
+                    <NumberControl label="Farben" value={state.farben} min={1} max={3} step={1} onChange={(v) => setState(s => ({...s, farben: v}))} />
+                    <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} max={1000} step={1} onChange={(v) => setState(s => ({ ...s, stueckzahl: v }))} />
+                  </div>
+
                   <div className="mt-6">
                     <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">Drucktechnik</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {Object.entries(CONFIG.techniken).map(([key, tech]) => (
-                        <button key={key} onClick={() => setState(s => ({...s, technik: key}))} className={`p-3 rounded-lg border text-left transition-all touch-manipulation ${state.technik === key ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20" : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-800/80"}`}>
+                        <button
+                          key={key}
+                          onClick={() => setState(s => ({...s, technik: key}))}
+                          className={`p-3 rounded-lg border text-left transition-all touch-manipulation ${state.technik === key ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20" : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-800/80"}`}
+                        >
                           <div className="font-bold text-sm">{tech.label}</div>
                           <div className={`text-xs mt-1 ${state.technik === key ? "text-blue-200" : "text-slate-500"}`}>{tech.desc}</div>
                         </button>
@@ -331,7 +358,10 @@
                 </div>
 
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 text-white font-semibold"><FileText size={18} className="text-blue-400" /><span>Optionen & Service</span></div>
+                  <div className="flex items-center gap-2 mb-4 text-white font-semibold">
+                    <FileText size={18} className="text-blue-400" />
+                    <span>Optionen & Service</span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Toggle label="Grafikbearbeitung" checked={state.extras.grafik} onChange={() => updateExtra('grafik')} priceInfo={`+${formatEUR(CONFIG.extraKosten.grafik)} pauschal`} />
                     <Toggle label="Dateiaufbereitung" checked={state.extras.datei} onChange={() => updateExtra('datei')} priceInfo={`+${formatEUR(CONFIG.extraKosten.datei)} pauschal`} />
@@ -344,19 +374,24 @@
 
               <div className="mb-6">
                 {hasError ? (
-                  <div className="bg-red-500/10 border border-red-500/50 rounded-2xl p-6 text-red-200 flex flex-col items-center text-center"><AlertCircle size={48} className="mb-3 text-red-500" /><h3 className="text-lg font-bold text-white">Kalkulation nicht möglich</h3><p className="text-sm mt-1">{result.error}</p><button onClick={() => setState(s => ({...s, laenge: 10, breite: 10}))} className="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded text-sm font-medium transition touch-manipulation">Maße zurücksetzen</button></div>
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-2xl p-6 text-red-200 flex flex-col items-center text-center">
+                    <AlertCircle size={48} className="mb-3 text-red-500" />
+                    <h3 className="text-lg font-bold text-white">Kalkulation nicht möglich</h3>
+                    <p className="text-sm mt-1">{result.error}</p>
+                    <button onClick={() => setState(s => ({...s, laenge: 10, breite: 10}))} className="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded text-sm font-medium transition touch-manipulation">Maße zurücksetzen</button>
+                  </div>
                 ) : (
                   <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl p-5">
                     <h3 className="text-lg font-bold text-white mb-4">Berechnungsdetails</h3>
 
                     {result.details.rabattLabel !== "0%" && (
-                      <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 p-3 rounded-lg border border-emerald-400/20 text-sm mb-4"><Check size={16} /><span className="font-medium">Mengenrabatt angewendet: {result.details.rabattLabel}</span></div>
+                      <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 p-3 rounded-lg border border-emerald-400/20 text-sm mb-4">
+                        <Check size={16} />
+                        <span className="font-medium">Mengenrabatt angewendet: {result.details.rabattLabel}</span>
+                      </div>
                     )}
 
                     <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 mb-4 grid grid-cols-2 gap-y-3 text-sm">
-                      <span className="text-slate-300">Grundpreis (Staffel: {result.details.staffelLabel})</span>
-                      <span className="text-right font-semibold text-slate-200">{formatEUR(result.details.grundpreis)}</span>
-
                       <span className="text-slate-400">Stückpreis Veredelung (netto)</span>
                       <span className="text-right font-semibold text-white">{formatEUR(result.details.einzelNetto)}</span>
 
@@ -372,8 +407,14 @@
                     </div>
 
                     <div className="bg-slate-950 rounded-lg p-4 space-y-2 mt-4 grid grid-cols-2">
-                      <div className="flex justify-between items-center text-slate-400 text-sm col-span-2"><span>Netto gesamt</span><span className="text-right text-lg font-bold text-white">{formatEUR(result.totalNetto)}</span></div>
-                      <div className="flex justify-between items-center text-slate-500 text-xs col-span-2"><span>MwSt (19%)</span><span className="text-right">{formatEUR(result.totalBrutto - result.totalNetto)}</span></div>
+                      <div className="flex justify-between items-center text-slate-400 text-sm col-span-2">
+                        <span>Netto gesamt</span>
+                        <span className="text-right text-lg font-bold text-white">{formatEUR(result.totalNetto)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-500 text-xs col-span-2">
+                        <span>MwSt (19%)</span>
+                        <span className="text-right">{formatEUR(result.totalBrutto - result.totalNetto)}</span>
+                      </div>
                     </div>
                   </div>
                 )}
