@@ -32,7 +32,7 @@
 <body class="bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white">
     <div id="root"></div>
 
-    <!-- Service Worker Registrierung für PWA (setzt voraus, dass sw.js existiert) -->
+    <!-- Service Worker Registrierung für PWA (set voraus, dass sw.js existiert) -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -267,10 +267,16 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
                       <div className="flex items-center gap-2 mb-4 text-white font-semibold"><Settings2 size={18} className="text-blue-400" /><span>Basisdaten</span></div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        {/* WICHTIG: step=0.5 für Dezimalstellen */}
+                        {/* 1. Länge */}
                         <NumberControl label="Länge" value={state.laenge} suffix="cm" step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
+                        
+                        {/* 2. Stückzahl (Neu positioniert) */}
+                        <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} suffix="Stück" onChange={(v) => setState(s => ({...s, stueckzahl: v}))} />
+                        
+                        {/* 3. Breite (Neu positioniert) */}
                         <NumberControl label="Breite" value={state.breite} suffix="cm" step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
-                        <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} onChange={(v) => setState(s => ({...s, stueckzahl: v}))} />
+                        
+                        {/* 4. Farben */}
                         <NumberControl label="Farben" value={state.farben} min={1} max={3} suffix="max" onChange={(v) => setState(s => ({...s, farben: v}))} />
                       </div>
                       <div className="mt-6">
