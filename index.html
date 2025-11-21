@@ -312,11 +312,11 @@
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
                   <div className="flex items-center gap-2 mb-4 text-white font-semibold"><Settings2 size={18} className="text-blue-400" /><span>Basisdaten</span></div>
                   <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 sm:gap-5">
-                    <NumberControl label="Länge (cm)" value={state.laenge} step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
-                    <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} max={1000}  step={1} onChange={(v) => setState(s => ({ ...s, stueckzahl: v }))} />
-                    <NumberControl label="Breite (cm)" value={state.breite} step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
-                    <NumberControl label="Farben" value={state.farben} min={1} max={3} step={1}  onChange={(v) => setState(s => ({...s, farben: v}))} />
-                  </div>
+  <NumberControl label="Länge (cm)" value={state.laenge} step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
+  <NumberControl label="Breite (cm)" value={state.breite} step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
+  <NumberControl label="Farben" value={state.farben} min={1} max={3} step={1} onChange={(v) => setState(s => ({...s, farben: v}))} />
+  <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} max={1000} step={1} onChange={(v) => setState(s => ({ ...s, stueckzahl: v }))} />
+</div>
                   <div className="mt-6">
                     <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">Drucktechnik</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
