@@ -51,7 +51,8 @@
     // 7) einzelVeredelung = grundpreis * farbFaktor * technikFaktor * reflektorFaktor * mengenFaktor
     // 8) Wiederverkäufer: einzelVeredelung *= 0.8
     // 9) Fremdware: +1.50€ pro Stück
-    // 10) einzelNetto = einzelVeredelung + Fremdware
+    // 9b) Name: +3.50€ pro Stück
+    // 10) einzelNetto = einzelVeredelung + Fremdware + Name
     // 11) totalNetto = (einzelNetto * Stückzahl) + Fixkosten
     // 12) totalBrutto = totalNetto * 1.19
 
@@ -80,7 +81,7 @@
         transfer: { label: "Transfer", faktor: 1.0, desc: "Premium" },
         flex:     { label: "Flex / Flock", faktor: 1.2, desc: "+20% (Handarbeit)" },
       },
-      extraKosten: { grafik: 20.0, datei: 25.0, fremdware: 1.5 },
+      extraKosten: { grafik: 20.0, datei: 25.0, fremdware: 1.5, name: 3.5 },
       faktoren: { reflektor: 1.2, wiederverkaeufer: 0.8, farbStep: 0.25 },
     };
 
@@ -110,7 +111,8 @@
       if (extras.wiederverkaeufer) einzelVeredelung *= CONFIG.faktoren.wiederverkaeufer;
 
       const fremdwareZuschlag = extras.fremdware ? CONFIG.extraKosten.fremdware : 0;
-      const einzelNetto = einzelVeredelung + fremdwareZuschlag;
+      const nameZuschlag = extras.name ? CONFIG.extraKosten.name : 0;
+      const einzelNetto = einzelVeredelung + fremdwareZuschlag + nameZuschlag;
       const gesamtNettoStueck = einzelNetto * stueckzahl;
 
       const fixkosten = (extras.grafik ? CONFIG.extraKosten.grafik : 0) + (extras.datei ? CONFIG.extraKosten.datei : 0);
@@ -136,7 +138,7 @@
     const LOCAL_STORAGE_KEY = 'stickbee_calc_state';
     const DEFAULT_STATE = {
       laenge: 10, breite: 10, stueckzahl: 10, farben: 1, technik: "dtf",
-      extras: { grafik: false, datei: false, fremdware: false, wiederverkaeufer: false, reflektor: false }
+      extras: { grafik: false, datei: false, fremdware: false, name: false, wiederverkaeufer: false, reflektor: false }
     };
 
     const loadState = () => {
@@ -367,6 +369,7 @@
                     <Toggle label="Dateiaufbereitung" checked={state.extras.datei} onChange={() => updateExtra('datei')} priceInfo={`+${formatEUR(CONFIG.extraKosten.datei)} pauschal`} />
                     <Toggle label="Reflektor-Material" checked={state.extras.reflektor} onChange={() => updateExtra('reflektor')} priceInfo="+20% Aufschlag" />
                     <Toggle label="Fremdware" checked={state.extras.fremdware} onChange={() => updateExtra('fremdware')} priceInfo={`+${formatEUR(CONFIG.extraKosten.fremdware)} / Stück`} />
+                    <Toggle label="Name" checked={state.extras.name} onChange={() => updateExtra('name')} priceInfo={`+${formatEUR(CONFIG.extraKosten.name)} / Stück`} />
                     <Toggle label="Wiederverkäufer" checked={state.extras.wiederverkaeufer} onChange={() => updateExtra('wiederverkaeufer')} priceInfo="-20% auf Veredelung" />
                   </div>
                 </div>
