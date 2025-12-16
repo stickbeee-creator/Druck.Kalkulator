@@ -1,45 +1,29 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stick-Bee Kalkulator</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Stick-Bee Kalkulator</title>
 
-    <!-- Mobile Web App Settings (iOS Fallback) -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#0f172a">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3393/3393989.png">
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3393/3393989.png">
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- PWA Manifest (Datei muss im Root liegen) -->
-    <link rel="manifest" href="/manifest.json">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Babel for in-browser React -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <style>
-        body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        /* Entfernt Pfeile bei number-Inputs */
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
-    </style>
+  <style>
+    body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    /* Entfernt Pfeile bei number-Inputs */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
 </head>
 <body class="bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white">
-  <div id="root"></div>
+  <div id="app"></div>
 
-  <!-- Application Logic (React mit Babel) -->
-  <script type="text/babel" data-type="module">
-    import React, { useState, useMemo, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
-    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
-    import { Calculator, AlertCircle, Check, Minus, Plus, FileText, RefreshCcw, Settings2 } from 'https://esm.sh/lucide-react@0.292.0';
+  <script>
+    'use strict';
 
     // --- PREISLOGIK (Erklärung) ---
     // 1) maxKante = max(Länge, Breite)
@@ -56,7 +40,6 @@
     // 11) totalNetto = (einzelNetto * Stückzahl) + Fixkosten
     // 12) totalBrutto = totalNetto * 1.19
 
-    // --- Konfiguration ---
     const CONFIG = {
       mwst: 0.19,
       preise: [
@@ -67,7 +50,6 @@
         { max: 30, preis: 9.5, label: "XL (bis 30cm)" },
         { max: 35, preis: 10.5, label: "XXL (bis 35cm)" },
       ],
-      // Rabatt maximal 50% ab 250 Stück
       rabatte: [
         { min: 250, faktor: 0.5, label: "-50%" },
         { min: 100, faktor: 0.6, label: "-40%" },
@@ -85,26 +67,46 @@
       faktoren: { reflektor: 1.2, wiederverkaeufer: 0.8, farbStep: 0.25 },
     };
 
-    const formatEUR = (val) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(val);
+    const LOCAL_STORAGE_KEY = 'stickbee_calc_state';
+
+    const DEFAULT_STATE = {
+      laenge: 10,
+      breite: 10,
+      stueckzahl: 10,
+      farben: 1,
+      technik: 'dtf',
+      extras: {
+        grafik: false,
+        datei: false,
+        fremdware: false,
+        name: false,
+        wiederverkaeufer: false,
+        reflektor: false,
+      }
+    };
+
+    const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+    const formatEUR = (val) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(val);
 
     function calculatePrice(state) {
       const { laenge, breite, stueckzahl, farben, technik, extras } = state;
       const maxKante = Math.max(laenge, breite);
       const staffel = CONFIG.preise.find((s) => maxKante <= s.max);
-      if (!staffel) return { error: "Größe überschreitet Standardmaße (max 35cm)." };
+      if (!staffel) return { error: 'Größe überschreitet Standardmaße (max 35cm).' };
 
       const grundpreis = staffel.preis;
-      const farbAnzahl = Math.min(Math.max(1, farben), 3);
+      const farbAnzahl = clamp(parseInt(farben, 10) || 1, 1, 3);
       let farbFaktor = 1 + CONFIG.faktoren.farbStep * (farbAnzahl - 1);
 
-      const gewaehlteTechnik = CONFIG.techniken[technik] ? technik : "dtf";
+      const gewaehlteTechnik = CONFIG.techniken[technik] ? technik : 'dtf';
       const technikFaktor = CONFIG.techniken[gewaehlteTechnik].faktor;
 
       // DTF: keine Farbaufschläge
-      if (gewaehlteTechnik === "dtf") farbFaktor = 1.0;
+      if (gewaehlteTechnik === 'dtf') farbFaktor = 1.0;
 
       const reflektorFaktor = extras.reflektor ? CONFIG.faktoren.reflektor : 1.0;
-      const rabattStaffel = CONFIG.rabatte.find((r) => stueckzahl >= r.min) || { faktor: 1, label: "0%" };
+      const rabattStaffel = CONFIG.rabatte.find((r) => stueckzahl >= r.min) || { faktor: 1, label: '0%' };
       const mengenFaktor = rabattStaffel.faktor;
 
       let einzelVeredelung = grundpreis * farbFaktor * technikFaktor * reflektorFaktor * mengenFaktor;
@@ -130,321 +132,395 @@
         },
         totalNetto,
         totalBrutto,
-        error: null
+        error: null,
       };
     }
 
-    // --- Local Storage Persistenz ---
-    const LOCAL_STORAGE_KEY = 'stickbee_calc_state';
-    const DEFAULT_STATE = {
-      laenge: 10, breite: 10, stueckzahl: 10, farben: 1, technik: "dtf",
-      extras: { grafik: false, datei: false, fremdware: false, name: false, wiederverkaeufer: false, reflektor: false }
-    };
-
-    const loadState = () => {
+    function loadState() {
       try {
         const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (!raw) return DEFAULT_STATE;
+        if (!raw) return structuredClone(DEFAULT_STATE);
         const s = JSON.parse(raw);
-        const numericState = {
+
+        const laenge = parseFloat(s.laenge);
+        const breite = parseFloat(s.breite);
+        const stueckzahl = parseInt(s.stueckzahl, 10);
+        const farben = parseInt(s.farben, 10);
+
+        const merged = {
+          ...structuredClone(DEFAULT_STATE),
           ...s,
-          laenge: parseFloat(s.laenge) > 0 ? parseFloat(s.laenge) : DEFAULT_STATE.laenge,
-          breite: parseFloat(s.breite) > 0 ? parseFloat(s.breite) : DEFAULT_STATE.breite,
-          stueckzahl: parseInt(s.stueckzahl) > 0 ? parseInt(s.stueckzahl) : DEFAULT_STATE.stueckzahl,
-          farben: parseInt(s.farben) > 0 ? parseInt(s.farben) : DEFAULT_STATE.farben,
+          laenge: Number.isFinite(laenge) && laenge > 0 ? laenge : DEFAULT_STATE.laenge,
+          breite: Number.isFinite(breite) && breite > 0 ? breite : DEFAULT_STATE.breite,
+          stueckzahl: Number.isFinite(stueckzahl) && stueckzahl > 0 ? stueckzahl : DEFAULT_STATE.stueckzahl,
+          farben: Number.isFinite(farben) && farben > 0 ? farben : DEFAULT_STATE.farben,
+          extras: { ...DEFAULT_STATE.extras, ...(s.extras || {}) }
         };
-        return {
-          ...DEFAULT_STATE,
-          ...numericState,
-          extras: { ...DEFAULT_STATE.extras, ...numericState.extras }
-        };
+
+        // sanitize ranges
+        merged.laenge = clamp(merged.laenge, 1, 35);
+        merged.breite = clamp(merged.breite, 1, 35);
+        merged.stueckzahl = clamp(merged.stueckzahl, 1, 1000);
+        merged.farben = clamp(merged.farben, 1, 3);
+        if (!CONFIG.techniken[merged.technik]) merged.technik = DEFAULT_STATE.technik;
+
+        return merged;
       } catch {
-        return DEFAULT_STATE;
+        return structuredClone(DEFAULT_STATE);
       }
-    };
-
-    const saveState = (state) => {
-      try {
-        if (state.laenge > 0 && state.breite > 0 && state.stueckzahl > 0) {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
-        }
-      } catch {}
-    };
-
-    // --- UI Komponenten ---
-    const NumberControl = ({ label, value, onChange, min = 1, max = 35, step = 0.5, suffix = "" }) => {
-      const intervalRef = useRef(null);
-      const timeoutRef = useRef(null);
-      const valueRef = useRef(value);
-
-      useEffect(() => { valueRef.current = value; }, [value]);
-
-      const stopHold = () => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      };
-
-      useEffect(() => stopHold, []);
-
-      const handleChange = (newVal) => {
-        let v = parseFloat(newVal);
-        if (isNaN(v)) return;
-        if (max !== undefined && v > max) v = max;
-        if (v < min) v = min;
-        onChange(v);
-      };
-
-      const startHold = (direction) => {
-        handleChange(valueRef.current + direction * step);
-        timeoutRef.current = setTimeout(() => {
-          intervalRef.current = setInterval(() => {
-            handleChange(valueRef.current + direction * step);
-          }, 45);
-        }, 250);
-      };
-
-      const displayValue = typeof value === 'number'
-        ? (Number.isInteger(value) ? value : value.toFixed(1))
-        : value;
-
-      const onMinusDown = (e) => { e.preventDefault(); stopHold(); startHold(-1); };
-      const onPlusDown = (e) => { e.preventDefault(); stopHold(); startHold(1); };
-
-      const holdProps = (onDown) => ({
-        onPointerDown: onDown,
-        onPointerUp: stopHold,
-        onPointerLeave: stopHold,
-        onPointerCancel: stopHold,
-        onContextMenu: (e) => e.preventDefault(),
-      });
-
-      return (
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</label>
-          <div className="flex items-center bg-slate-900 rounded-lg border border-slate-700 p-1">
-            <button
-              type="button"
-              aria-label={`Reduziere ${label}`}
-              {...holdProps(onMinusDown)}
-              className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition active:scale-95 touch-manipulation"
-            >
-              <Minus size={16} />
-            </button>
-
-            <div className="flex-1 h-10 flex items-center justify-center overflow-hidden">
-              <div className="flex items-center">
-                <input
-                  className="w-full bg-transparent text-center text-lg text-white outline-none"
-                  type="number"
-                  inputMode={step < 1 ? "decimal" : "numeric"}
-                  value={displayValue}
-                  step={step}
-                  min={min}
-                  max={max}
-                  onChange={(e) => handleChange(e.target.value)}
-                  onBlur={(e) => handleChange(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  aria-label={label}
-                />
-                {suffix && (
-                  <span className="text-slate-500 text-sm ml-0.5 whitespace-nowrap">{suffix}</span>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              aria-label={`Erhöhe ${label}`}
-              {...holdProps(onPlusDown)}
-              className="w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white transition active:scale-95 touch-manipulation"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
-        </div>
-      );
-    };
-
-    const Toggle = ({ label, checked, onChange, priceInfo }) => (
-      <div onClick={() => onChange(!checked)} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all duration-200 touch-manipulation ${checked ? "bg-blue-900/20 border-blue-500/50" : "bg-slate-800/50 border-slate-700 hover:border-slate-600"}`}>
-        <div className="flex flex-col">
-          <span className={`text-sm font-medium ${checked ? "text-blue-200" : "text-slate-300"}`}>{label}</span>
-          {priceInfo && <span className="text-xs text-slate-500">{priceInfo}</span>}
-        </div>
-        <div className={`w-10 h-6 rounded-full relative transition-colors ${checked ? "bg-blue-500" : "bg-slate-600"}`}>
-          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${checked ? "left-5" : "left-1"}`} />
-        </div>
-      </div>
-    );
-
-    const ResultFooter = ({ result, handleReset }) => {
-      if (result.error) return null;
-      return (
-        <div id="result-footer" className="sticky bottom-0 w-full mt-6 bg-slate-800 border-t border-slate-700 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] z-20">
-          <div className="max-w-xl mx-auto p-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-slate-400 text-xs uppercase tracking-widest font-bold">Gesamtsumme (inkl. MwSt.)</h2>
-              <div className="text-2xl font-bold text-white tracking-tight">{formatEUR(result.totalBrutto)}</div>
-            </div>
-            <button onClick={handleReset} className="flex items-center gap-2 px-4 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition active:scale-95 shadow-md shadow-blue-900/40 touch-manipulation shrink-0" aria-label="Kalkulator zurücksetzen">
-              <RefreshCcw size={18} /> Zurücksetzen
-            </button>
-          </div>
-        </div>
-      );
-    };
-
-    function App() {
-      const [state, setState] = useState(loadState());
-      useEffect(() => saveState(state), [state]);
-
-      const updateExtra = (key) => setState(s => ({ ...s, extras: { ...s.extras, [key]: !s.extras[key] } }));
-      const result = useMemo(() => calculatePrice(state), [state]);
-      const hasError = !!result.error;
-
-      const handleReset = () => {
-        setState(DEFAULT_STATE);
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
-      };
-
-      return (
-        <div className="min-h-screen p-4 md:p-8 flex flex-col items-center font-sans pb-8">
-          <div className="w-full max-w-xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20">
-                <Calculator className="text-white" size={24} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Stick-Bee Kalkulator</h1>
-                <p className="text-slate-400 text-sm">Preise für Textilveredelung berechnen</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-6">
-              <div className="space-y-6">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 text-white font-semibold">
-                    <Settings2 size={18} className="text-blue-400" />
-                    <span>Basisdaten</span>
-                  </div>
-
-                  {/* Reihenfolge mobil: Länge, Breite, Farben, Stückzahl */}
-                  <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 sm:gap-5">
-                    <NumberControl label="Länge (cm)" value={state.laenge} step={0.5} onChange={(v) => setState(s => ({...s, laenge: v}))} min={1} max={35} />
-                    <NumberControl label="Breite (cm)" value={state.breite} step={0.5} onChange={(v) => setState(s => ({...s, breite: v}))} min={1} max={35} />
-                    <NumberControl label="Farben" value={state.farben} min={1} max={3} step={1} onChange={(v) => setState(s => ({...s, farben: v}))} />
-                    <NumberControl label="Stückzahl" value={state.stueckzahl} min={1} max={1000} step={1} onChange={(v) => setState(s => ({ ...s, stueckzahl: v }))} />
-                  </div>
-
-                  <div className="mt-6">
-                    <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">Drucktechnik</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {Object.entries(CONFIG.techniken).map(([key, tech]) => (
-                        <button
-                          key={key}
-                          onClick={() => setState(s => ({...s, technik: key}))}
-                          className={`p-3 rounded-lg border text-left transition-all touch-manipulation ${state.technik === key ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20" : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-800/80"}`}
-                        >
-                          <div className="font-bold text-sm">{tech.label}</div>
-                          <div className={`text-xs mt-1 ${state.technik === key ? "text-blue-200" : "text-slate-500"}`}>{tech.desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 text-white font-semibold">
-                    <FileText size={18} className="text-blue-400" />
-                    <span>Optionen & Service</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Toggle label="Grafikbearbeitung" checked={state.extras.grafik} onChange={() => updateExtra('grafik')} priceInfo={`+${formatEUR(CONFIG.extraKosten.grafik)} pauschal`} />
-                    <Toggle label="Dateiaufbereitung" checked={state.extras.datei} onChange={() => updateExtra('datei')} priceInfo={`+${formatEUR(CONFIG.extraKosten.datei)} pauschal`} />
-                    <Toggle label="Reflektor-Material" checked={state.extras.reflektor} onChange={() => updateExtra('reflektor')} priceInfo="+20% Aufschlag" />
-                    <Toggle label="Fremdware" checked={state.extras.fremdware} onChange={() => updateExtra('fremdware')} priceInfo={`+${formatEUR(CONFIG.extraKosten.fremdware)} / Stück`} />
-                    <Toggle label="Name" checked={state.extras.name} onChange={() => updateExtra('name')} priceInfo={`+${formatEUR(CONFIG.extraKosten.name)} / Stück`} />
-                    <Toggle label="Wiederverkäufer" checked={state.extras.wiederverkaeufer} onChange={() => updateExtra('wiederverkaeufer')} priceInfo="-20% auf Veredelung" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                {hasError ? (
-                  <div className="bg-red-500/10 border border-red-500/50 rounded-2xl p-6 text-red-200 flex flex-col items-center text-center">
-                    <AlertCircle size={48} className="mb-3 text-red-500" />
-                    <h3 className="text-lg font-bold text-white">Kalkulation nicht möglich</h3>
-                    <p className="text-sm mt-1">{result.error}</p>
-                    <button onClick={() => setState(s => ({...s, laenge: 10, breite: 10}))} className="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded text-sm font-medium transition touch-manipulation">Maße zurücksetzen</button>
-                  </div>
-                ) : (
-                  <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl p-5">
-                    <h3 className="text-lg font-bold text-white mb-4">Berechnungsdetails</h3>
-
-                    {result.details.rabattLabel !== "0%" && (
-                      <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 p-3 rounded-lg border border-emerald-400/20 text-sm mb-4">
-                        <Check size={16} />
-                        <span className="font-medium">Mengenrabatt angewendet: {result.details.rabattLabel}</span>
-                      </div>
-                    )}
-
-                    <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 mb-4 grid grid-cols-2 gap-y-3 text-sm">
-                      <span className="text-slate-400">Stückpreis Veredelung (netto)</span>
-                      <span className="text-right font-semibold text-white">{formatEUR(result.details.einzelNetto)}</span>
-
-                      <span className="text-slate-400">Stückzahl</span>
-                      <span className="text-right text-white">× {state.stueckzahl}</span>
-
-                      {result.details.fixkosten > 0 && (
-                        <>
-                          <span className="text-amber-200 border-t border-slate-700/50 pt-2 mt-2">+ Fixkosten (Grafik/Datei)</span>
-                          <span className="text-right font-semibold text-amber-200 border-t border-slate-700/50 pt-2 mt-2">{formatEUR(result.details.fixkosten)}</span>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="bg-slate-950 rounded-lg p-4 space-y-2 mt-4 grid grid-cols-2">
-                      <div className="flex justify-between items-center text-slate-400 text-sm col-span-2">
-                        <span>Netto gesamt</span>
-                        <span className="text-right text-lg font-bold text-white">{formatEUR(result.totalNetto)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-slate-500 text-xs col-span-2">
-                        <span>MwSt (19%)</span>
-                        <span className="text-right">{formatEUR(result.totalBrutto - result.totalNetto)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <ResultFooter result={result} handleReset={handleReset} />
-          </div>
-        </div>
-      );
     }
 
-    createRoot(document.getElementById('root')).render(<App />);
-  </script>
+    function saveState(state) {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+      } catch {}
+    }
 
-  <!-- PWA Service Worker (nur auf HTTPS/localhost, nach Load) -->
-  <script>
-    (function registerSWWhenSafe(){
-      if (!('serviceWorker' in navigator)) return;
-      const isAllowedHost = (location.protocol === 'https:' || location.hostname === 'localhost');
-      if (!isAllowedHost || !window.isSecureContext) return;
-      const doRegister = () => {
-        navigator.serviceWorker.register('/service-worker.js').catch(console.error);
-      };
-      if (document.readyState === 'complete') doRegister();
-      else window.addEventListener('load', doRegister, { once: true });
-    })();
+    // --- UI helpers ---
+
+    const app = document.getElementById('app');
+
+    const ICONS = {
+      calculator: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10"/><line x1="12" y1="10" x2="12" y2="10"/><line x1="16" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="8" y2="18"/><line x1="12" y1="18" x2="12" y2="18"/><line x1="16" y1="18" x2="16" y2="18"/></svg>`,
+      settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4.5 h-4.5"><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/><circle cx="12" cy="12" r="4"/></svg>`,
+      file: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4.5 h-4.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`,
+      refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4.5 h-4.5"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
+      minus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M5 12h14"/></svg>`,
+      plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
+      alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-12 h-12"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg>`,
+      check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M20 6 9 17l-5-5"/></svg>`,
+    };
+
+    let state = loadState();
+
+    function setState(patch) {
+      state = { ...state, ...patch };
+      saveState(state);
+      render();
+    }
+
+    function setExtras(key, value) {
+      state = { ...state, extras: { ...state.extras, [key]: value } };
+      saveState(state);
+      render();
+    }
+
+    function numberDisplay(v, step) {
+      if (typeof v !== 'number' || !Number.isFinite(v)) return '';
+      if (step < 1) return Number.isInteger(v) ? String(v) : v.toFixed(1);
+      return String(Math.round(v));
+    }
+
+    function numberControl({ id, label, value, min, max, step, suffix }) {
+      const display = numberDisplay(value, step);
+      return `
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">${label}</label>
+          <div class="flex items-center bg-slate-900 rounded-lg border border-slate-700 p-1">
+            <button type="button" class="nc-btn w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition active:scale-95 touch-manipulation"
+              data-nc="minus" data-id="${id}" aria-label="Reduziere ${label}">${ICONS.minus}</button>
+
+            <div class="flex-1 h-10 flex items-center justify-center overflow-hidden">
+              <div class="flex items-center">
+                <input
+                  class="nc-input w-full bg-transparent text-center text-lg text-white outline-none"
+                  type="number"
+                  inputmode="${step < 1 ? 'decimal' : 'numeric'}"
+                  value="${display}"
+                  step="${step}"
+                  min="${min}"
+                  max="${max}"
+                  data-id="${id}"
+                  aria-label="${label}"
+                />
+                ${suffix ? `<span class="text-slate-500 text-sm ml-0.5 whitespace-nowrap">${suffix}</span>` : ''}
+              </div>
+            </div>
+
+            <button type="button" class="nc-btn w-10 h-10 shrink-0 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white transition active:scale-95 touch-manipulation"
+              data-nc="plus" data-id="${id}" aria-label="Erhöhe ${label}">${ICONS.plus}</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleCard({ key, label, checked, priceInfo }) {
+      const cls = checked ? 'bg-blue-900/20 border-blue-500/50' : 'bg-slate-800/50 border-slate-700 hover:border-slate-600';
+      const textCls = checked ? 'text-blue-200' : 'text-slate-300';
+      const pillCls = checked ? 'bg-blue-500' : 'bg-slate-600';
+      const knobCls = checked ? 'left-5' : 'left-1';
+
+      return `
+        <div class="toggle flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all duration-200 touch-manipulation ${cls}" data-toggle="${key}" role="switch" aria-checked="${checked ? 'true' : 'false'}" tabindex="0">
+          <div class="flex flex-col">
+            <span class="text-sm font-medium ${textCls}">${label}</span>
+            ${priceInfo ? `<span class="text-xs text-slate-500">${priceInfo}</span>` : ''}
+          </div>
+          <div class="w-10 h-6 rounded-full relative transition-colors ${pillCls}">
+            <div class="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${knobCls}"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function render() {
+      const result = calculatePrice(state);
+      const hasError = !!result.error;
+
+      const techButtons = Object.entries(CONFIG.techniken).map(([key, tech]) => {
+        const active = state.technik === key;
+        const cls = active
+          ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20'
+          : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-800/80';
+        const descCls = active ? 'text-blue-200' : 'text-slate-500';
+        return `
+          <button type="button" class="tech p-3 rounded-lg border text-left transition-all touch-manipulation ${cls}" data-tech="${key}">
+            <div class="font-bold text-sm">${tech.label}</div>
+            <div class="text-xs mt-1 ${descCls}">${tech.desc}</div>
+          </button>
+        `;
+      }).join('');
+
+      const options = [
+        toggleCard({ key: 'grafik', label: 'Grafikbearbeitung', checked: state.extras.grafik, priceInfo: `+${formatEUR(CONFIG.extraKosten.grafik)} pauschal` }),
+        toggleCard({ key: 'datei', label: 'Dateiaufbereitung', checked: state.extras.datei, priceInfo: `+${formatEUR(CONFIG.extraKosten.datei)} pauschal` }),
+        toggleCard({ key: 'reflektor', label: 'Reflektor-Material', checked: state.extras.reflektor, priceInfo: '+20% Aufschlag' }),
+        toggleCard({ key: 'fremdware', label: 'Fremdware', checked: state.extras.fremdware, priceInfo: `+${formatEUR(CONFIG.extraKosten.fremdware)} / Stück` }),
+        toggleCard({ key: 'name', label: 'Name', checked: state.extras.name, priceInfo: `+${formatEUR(CONFIG.extraKosten.name)} / Stück` }),
+        toggleCard({ key: 'wiederverkaeufer', label: 'Wiederverkäufer', checked: state.extras.wiederverkaeufer, priceInfo: '-20% auf Veredelung' }),
+      ].join('');
+
+      const basis = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center gap-2 mb-4 text-white font-semibold">
+            <span class="text-blue-400">${ICONS.settings}</span>
+            <span>Basisdaten</span>
+          </div>
+
+          <div class="flex flex-col sm:grid sm:grid-cols-2 gap-4 sm:gap-5">
+            ${numberControl({ id: 'laenge', label: 'Länge (cm)', value: state.laenge, min: 1, max: 35, step: 0.5, suffix: '' })}
+            ${numberControl({ id: 'breite', label: 'Breite (cm)', value: state.breite, min: 1, max: 35, step: 0.5, suffix: '' })}
+            ${numberControl({ id: 'farben', label: 'Farben', value: state.farben, min: 1, max: 3, step: 1, suffix: '' })}
+            ${numberControl({ id: 'stueckzahl', label: 'Stückzahl', value: state.stueckzahl, min: 1, max: 1000, step: 1, suffix: '' })}
+          </div>
+
+          <div class="mt-6">
+            <label class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">Drucktechnik</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              ${techButtons}
+            </div>
+          </div>
+        </div>
+      `;
+
+      const service = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center gap-2 mb-4 text-white font-semibold">
+            <span class="text-blue-400">${ICONS.file}</span>
+            <span>Optionen & Service</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${options}
+          </div>
+        </div>
+      `;
+
+      const content = hasError ? `
+        <div class="bg-red-500/10 border border-red-500/50 rounded-2xl p-6 text-red-200 flex flex-col items-center text-center">
+          <div class="mb-3 text-red-500">${ICONS.alert}</div>
+          <h3 class="text-lg font-bold text-white">Kalkulation nicht möglich</h3>
+          <p class="text-sm mt-1">${result.error}</p>
+          <button type="button" id="reset-sizes" class="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded text-sm font-medium transition touch-manipulation">Maße zurücksetzen</button>
+        </div>
+      ` : `
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl p-5">
+          <h3 class="text-lg font-bold text-white mb-4">Berechnungsdetails</h3>
+
+          ${result.details.rabattLabel !== '0%' ? `
+            <div class="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 p-3 rounded-lg border border-emerald-400/20 text-sm mb-4">
+              ${ICONS.check}
+              <span class="font-medium">Mengenrabatt angewendet: ${result.details.rabattLabel}</span>
+            </div>
+          ` : ''}
+
+          <div class="bg-slate-950/40 border border-slate-800 rounded-xl p-4 mb-4 grid grid-cols-2 gap-y-3 text-sm">
+            <span class="text-slate-400">Stückpreis Veredelung (netto)</span>
+            <span class="text-right font-semibold text-white">${formatEUR(result.details.einzelNetto)}</span>
+
+            <span class="text-slate-400">Stückzahl</span>
+            <span class="text-right text-white">× ${state.stueckzahl}</span>
+
+            ${result.details.fixkosten > 0 ? `
+              <span class="text-amber-200 border-t border-slate-700/50 pt-2 mt-2">+ Fixkosten (Grafik/Datei)</span>
+              <span class="text-right font-semibold text-amber-200 border-t border-slate-700/50 pt-2 mt-2">${formatEUR(result.details.fixkosten)}</span>
+            ` : ''}
+          </div>
+
+          <div class="bg-slate-950 rounded-lg p-4 space-y-2 mt-4 grid grid-cols-2">
+            <div class="flex justify-between items-center text-slate-400 text-sm col-span-2">
+              <span>Netto gesamt</span>
+              <span class="text-right text-lg font-bold text-white">${formatEUR(result.totalNetto)}</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-500 text-xs col-span-2">
+              <span>MwSt (19%)</span>
+              <span class="text-right">${formatEUR(result.totalBrutto - result.totalNetto)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const footer = !hasError ? `
+        <div id="result-footer" class="sticky bottom-0 w-full mt-6 bg-slate-800 border-t border-slate-700 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] z-20">
+          <div class="max-w-xl mx-auto p-4 flex items-center justify-between">
+            <div>
+              <h2 class="text-slate-400 text-xs uppercase tracking-widest font-bold">Gesamtsumme (inkl. MwSt.)</h2>
+              <div class="text-2xl font-bold text-white tracking-tight">${formatEUR(result.totalBrutto)}</div>
+            </div>
+            <button type="button" id="reset-all" class="flex items-center gap-2 px-4 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition active:scale-95 shadow-md shadow-blue-900/40 touch-manipulation shrink-0" aria-label="Kalkulator zurücksetzen">
+              <span class="inline-flex">${ICONS.refresh}</span>
+              Zurücksetzen
+            </button>
+          </div>
+        </div>
+      ` : '';
+
+      app.innerHTML = `
+        <div class="min-h-screen p-4 md:p-8 flex flex-col items-center font-sans pb-8">
+          <div class="w-full max-w-xl">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20">
+                <span class="text-white">${ICONS.calculator}</span>
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold text-white">Stick-Bee Kalkulator</h1>
+                <p class="text-slate-400 text-sm">Preise für Textilveredelung berechnen</p>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-6">
+              <div class="space-y-6">
+                ${basis}
+                ${service}
+              </div>
+
+              <div class="mb-6">
+                ${content}
+              </div>
+            </div>
+
+            ${footer}
+          </div>
+        </div>
+      `;
+    }
+
+    // --- Events (delegation) ---
+
+    function parseNumberInputValue(inputEl, step) {
+      const raw = inputEl.value;
+      const v = step < 1 ? parseFloat(raw) : parseInt(raw, 10);
+      return Number.isFinite(v) ? v : NaN;
+    }
+
+    const HOLD = { timeoutId: null, intervalId: null };
+
+    function stopHold() {
+      if (HOLD.timeoutId) { clearTimeout(HOLD.timeoutId); HOLD.timeoutId = null; }
+      if (HOLD.intervalId) { clearInterval(HOLD.intervalId); HOLD.intervalId = null; }
+    }
+
+    function startHold(actionFn) {
+      actionFn();
+      HOLD.timeoutId = setTimeout(() => {
+        HOLD.intervalId = setInterval(actionFn, 45);
+      }, 250);
+    }
+
+    function applyNumberChange(id, delta, step, min, max) {
+      const next = clamp((state[id] || 0) + delta, min, max);
+      setState({ [id]: next });
+    }
+
+    function ncMeta(id) {
+      if (id === 'laenge' || id === 'breite') return { step: 0.5, min: 1, max: 35 };
+      if (id === 'farben') return { step: 1, min: 1, max: 3 };
+      if (id === 'stueckzahl') return { step: 1, min: 1, max: 1000 };
+      return { step: 1, min: 1, max: 9999 };
+    }
+
+    document.addEventListener('pointerup', stopHold, { passive: true });
+    document.addEventListener('pointercancel', stopHold, { passive: true });
+
+    document.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('.nc-btn');
+      if (!btn) return;
+      e.preventDefault();
+      stopHold();
+
+      const dir = btn.dataset.nc; // plus/minus
+      const id = btn.dataset.id;
+      const { step, min, max } = ncMeta(id);
+      const delta = (dir === 'plus' ? 1 : -1) * step;
+      startHold(() => applyNumberChange(id, delta, step, min, max));
+    });
+
+    document.addEventListener('input', (e) => {
+      const input = e.target.closest('.nc-input');
+      if (!input) return;
+      const id = input.dataset.id;
+      const { step, min, max } = ncMeta(id);
+      const v = parseNumberInputValue(input, step);
+      if (!Number.isFinite(v)) return;
+      setState({ [id]: clamp(v, min, max) });
+    });
+
+    document.addEventListener('focusin', (e) => {
+      const input = e.target.closest('.nc-input');
+      if (!input) return;
+      try { input.select(); } catch {}
+    });
+
+    document.addEventListener('click', (e) => {
+      const tech = e.target.closest('.tech');
+      if (tech) {
+        const key = tech.dataset.tech;
+        setState({ technik: key });
+        return;
+      }
+
+      const toggle = e.target.closest('.toggle');
+      if (toggle) {
+        const key = toggle.dataset.toggle;
+        setExtras(key, !state.extras[key]);
+        return;
+      }
+
+      const resetAll = e.target.closest('#reset-all');
+      if (resetAll) {
+        state = structuredClone(DEFAULT_STATE);
+        try { localStorage.removeItem(LOCAL_STORAGE_KEY); } catch {}
+        render();
+        return;
+      }
+
+      const resetSizes = e.target.closest('#reset-sizes');
+      if (resetSizes) {
+        setState({ laenge: 10, breite: 10 });
+        return;
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const toggle = e.target.closest('.toggle');
+      if (!toggle) return;
+      e.preventDefault();
+      const key = toggle.dataset.toggle;
+      setExtras(key, !state.extras[key]);
+    });
+
+    // init
+    render();
   </script>
 </body>
 </html>
