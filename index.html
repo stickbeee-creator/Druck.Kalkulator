@@ -33,7 +33,7 @@
     // 5) reflektorFaktor = 1.2 falls aktiviert
     // 6) mengenFaktor = Rabatt nach Stückzahl (max -50% ab 250)
     // 7) einzelVeredelung = grundpreis * farbFaktor * technikFaktor * reflektorFaktor * mengenFaktor
-    // 8) Wiederverkäufer: einzelVeredelung *= 0.8
+    // 8) Wiederverkäufer: einzelVeredelung *= 0.75
     // 9) Fremdware: +1.50€ pro Stück
     // 9b) Name: +3.50€ pro Stück
     // 10) einzelNetto = einzelVeredelung + Fremdware + Name
@@ -64,7 +64,7 @@
         flex:     { label: "Flex / Flock", faktor: 1.2, desc: "+20% (Handarbeit)" },
       },
       extraKosten: { grafik: 20.0, datei: 25.0, fremdware: 1.5, name: 3.5 },
-      faktoren: { reflektor: 1.2, wiederverkaeufer: 0.8, farbStep: 0.25 },
+      faktoren: { reflektor: 1.2, wiederverkaeufer: 0.75, farbStep: 0.25 },
     };
 
     const LOCAL_STORAGE_KEY = 'stickbee_calc_state';
@@ -287,7 +287,7 @@
         toggleCard({ key: 'reflektor', label: 'Reflektor-Material', checked: state.extras.reflektor, priceInfo: '+20% Aufschlag' }),
         toggleCard({ key: 'fremdware', label: 'Fremdware', checked: state.extras.fremdware, priceInfo: `+${formatEUR(CONFIG.extraKosten.fremdware)} / Stück` }),
         toggleCard({ key: 'name', label: 'Name', checked: state.extras.name, priceInfo: `+${formatEUR(CONFIG.extraKosten.name)} / Stück` }),
-        toggleCard({ key: 'wiederverkaeufer', label: 'Wiederverkäufer', checked: state.extras.wiederverkaeufer, priceInfo: '-20% auf Veredelung' }),
+        toggleCard({ key: 'wiederverkaeufer', label: 'Wiederverkäufer', checked: state.extras.wiederverkaeufer, priceInfo: '-25% auf Veredelung' }),
       ].join('');
 
       const basis = `
